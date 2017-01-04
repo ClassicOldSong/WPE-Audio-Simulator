@@ -1,0 +1,19 @@
+.wsmu.box {
+	position: fixed;
+	padding: 5px;
+	overflow: hidden;
+	background-color: rgba(0, 0, 0, 0.6);
+	z-index: 999999;
+}
+.wsmu.top {
+	top: 0;
+}
+.wsmu.left {
+	left: 0;
+}
+.wsmu.bottom {
+	bottom: 0;
+}
+.wsmu.right {
+	right: 0;
+}
