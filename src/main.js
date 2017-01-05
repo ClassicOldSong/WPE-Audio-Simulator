@@ -1,3 +1,4 @@
+/* global VERSION */
 'use strict'
 
 import { log, info } from './debug.js'
@@ -14,47 +15,31 @@ window.wallpaperRegisterAudioListener = registerAudioListener
 
 const audio = new Audio()
 const ctx = new AudioContext()
-const scriptL = ctx.createScriptProcessor(2048, 1, 1)
-const scriptR = ctx.createScriptProcessor(2048, 1, 1)
 const source = ctx.createMediaElementSource(audio)
-const splitter = ctx.createChannelSplitter(2)
+const splitter = ctx.createChannelSplitter()
 const analyserL = ctx.createAnalyser()
 const analyserR = ctx.createAnalyser()
 const fps = 30
 const tg = 1000 / fps
 
+let raito = 0.5
 let AFID = 0
 let last = 0
 let threshold = 0
-let arrL = new Array(64)
-let arrR = new Array(64)
 
-analyserL.fftSize = 64
-analyserR.fftSize = 64
+analyserL.smoothingTimeConstant = 0
+analyserR.smoothingTimeConstant = 0
+analyserL.fftSize = 2048
+analyserR.fftSize = 2048
 
 source.connect(splitter)
 splitter.connect(analyserL, 0, 0)
 splitter.connect(analyserR, 1, 0)
-scriptL.connect(analyserL)
-scriptR.connect(analyserR)
-
-scriptL.onaudioprocess = () => {
-	const u8arr = new Uint8Array(analyserL.frequencyBinCount)
-	analyserL.getByteFrequencyData(u8arr)
-	arrL = Array.from(u8arr)
-}
-scriptR.onaudioprocess = () => {
-	const u8arr = new Uint8Array(analyserR.frequencyBinCount)
-	analyserL.getByteFrequencyData(u8arr)
-	arrR = Array.from(u8arr)
-}
 
 source.connect(ctx.destination)
 
-const start = () => {
-	window.requestAnimationFrame(start)
-
-	log('Raw arr', arrL, arrR)
+const update = () => {
+	AFID = window.requestAnimationFrame(update)
 
 	const now = performance.now()
 	const dt = now - last
@@ -64,40 +49,53 @@ const start = () => {
 	if (threshold > tg) threshold = 0
 	else return
 
+	const u8arrL = new Uint8Array(analyserL.frequencyBinCount)
+	const u8arrR = new Uint8Array(analyserR.frequencyBinCount)
+	analyserL.getByteFrequencyData(u8arrL)
+	analyserR.getByteFrequencyData(u8arrR)
+	const tarrL = Array.from(u8arrL)
+	const tarrR = Array.from(u8arrR)
+	const arrL = []
+	const arrR = []
+	for (let i = 0; i < 384; i += 6) {
+		arrL.push(Math.pow((tarrL[i] + tarrL[i + 384]) / 256, 3) * Math.pow(0.9 + 2 * i / u8arrL.length, 2) * raito)
+		arrR.push(Math.pow((tarrR[i] + tarrR[i + 384]) / 256, 3) * Math.pow(0.9 + 2 * i / u8arrR.length, 2) * raito)
+	}
+
 	audioListener(arrL.concat(arrR))
 }
 
 const init = () => {
 	document.removeEventListener('DOMContentLoaded', init, false)
 
-	$('body').insertAdjacentHTML('beforeend', content)
+	$('body').insertAdjacentHTML('afterbegin', content)
 
 	const input = $('.wsmu.input')
-	const playBtn = $('wsmu.btn.play')
-	const pauseBtn = $('wsmu.btn.pause')
-	const stopBtn = $('wsmu.btn.stop')
+	const playBtn = $('.wsmu.btn.play')
+	const pauseBtn = $('.wsmu.btn.pause')
+	const stopBtn = $('.wsmu.btn.stop')
 
-	input.addEventListener('change', () => {
-		const fr = new FileReader()
-		fr.onload = (e) => {
-			log(e.target.result)
-		}
+	input.addEventListener('change', (evt) => {
+		const url = URL.createObjectURL(evt.target.files[0])
+		if (audio.src) URL.revokeObjectURL(audio.src)
+		audio.src = url
 	})
 
 	playBtn.addEventListener('click', () => {
-		start()
+		if (!AFID) update()
 		audio.play()
 	})
-	pauseBtn.addEventListener('click', audio.pause)
+	pauseBtn.addEventListener('click', () => {
+		audio.pause()
+	})
 	stopBtn.addEventListener('click', () => {
-		window.cancelAnimationFrame(AFID)
 		audio.pause()
 		audio.currentTime = 0
+		window.cancelAnimationFrame(AFID)
+		AFID = 0
 	})
 
-	audio.src = './test.mp3'
-
-	info(`v{VERSION} Initialized!`)
+	info(`v${VERSION} Initialized!`)
 }
 
 document.addEventListener('DOMContentLoaded', init, false)
