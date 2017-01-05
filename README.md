@@ -1,5 +1,4 @@
 # Wallpaper Engine Audio API Simulator
-===
 
 A simulation of Audio API for Wallpaper Engine
 
