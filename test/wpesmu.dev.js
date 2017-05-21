@@ -1085,7 +1085,7 @@ var init = function init() {
 	pauseBtn.addEventListener('click', _ref6);
 	stopBtn.addEventListener('click', _ref7);
 
-	info('v' + "0.3.0.master.43f9939" + ' Initialized!');
+	info('v' + "0.3.0.master.0b1409d" + ' Initialized!');
 };
 
 var connectAll = function connectAll() {
