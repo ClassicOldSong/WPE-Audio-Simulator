@@ -18,6 +18,7 @@ window.wallpaperRegisterAudioListener = registerAudioListener
 const audio = new Audio()
 const ctx = new AudioContext()
 const source = ctx.createMediaElementSource(audio)
+const processor = ctx.createScriptProcessor(4096)
 const splitter = ctx.createChannelSplitter()
 const analyserL = ctx.createAnalyser()
 const analyserR = ctx.createAnalyser()
@@ -28,17 +29,33 @@ let raito = 0.6
 let AFID = 0
 let last = 0
 let threshold = 0
+let useMicrophone = false
 
+const micBuffer = [new Float32Array(4096), new Float32Array(4096)]
 analyserL.smoothingTimeConstant = 0
 analyserR.smoothingTimeConstant = 0
 analyserL.fftSize = 2048
 analyserR.fftSize = 2048
 
-source.connect(splitter)
-splitter.connect(analyserL, 0, 0)
-splitter.connect(analyserR, 1, 0)
+const processMerge = ({inputBuffer, outputBuffer}) => {
+	for (let channel = 0; channel < outputBuffer.numberOfChannels; channel++) {
+		const inputData = inputBuffer.getChannelData(channel)
+		const outputData = outputBuffer.getChannelData(channel)
 
-source.connect(ctx.destination)
+		for (let sample = 0; sample < inputBuffer.length; sample++) {
+			outputData[sample] = inputData[sample]
+			if (micBuffer[channel][sample]) outputData[sample] += micBuffer[channel][sample]
+		}
+	}
+}
+
+const processMic = ({inputBuffer}) => {
+  for (let i = 0; i < inputBuffer.numberOfChannels; i++) {
+		inputBuffer.copyFromChannel(micBuffer[i], i)
+  }
+}
+
+processor.onaudioprocess = processMerge
 
 const shiftCanvas = () => {
 	const imageData = _ctx.getImageData(0, 0, canvas.width, canvas.height)
@@ -80,12 +97,11 @@ const update = () => {
 		_ctx.fillRect(1023, i, 1, 1)
 	}
 
-	const outputData = arrL.concat(arrR)
+	const outputData = arrL.reverse().concat(arrR.reverse())
 		.map((item) => {
 			if (item < 0 || item === Infinity) return 0
 			return item
 		})
-	// log(outputData)
 	audioListener(outputData)
 }
 
@@ -101,6 +117,7 @@ const init = () => {
 	canvas = $('.wsmu.canvas')
 	_ctx = canvas.getContext('2d')
 
+	if (useMicrophone) update()
 	input.addEventListener('change', (evt) => {
 		const url = URL.createObjectURL(evt.target.files[0])
 		if (audio.src) URL.revokeObjectURL(audio.src)
@@ -124,4 +141,31 @@ const init = () => {
 	info(`v${VERSION} Initialized!`)
 }
 
-document.addEventListener('DOMContentLoaded', init, false)
+const connectAll = () => {
+	source.connect(processor)
+	// micProcessor.connect(splitter)
+	processor.connect(splitter)
+	splitter.connect(analyserL, 0, 0)
+	splitter.connect(analyserR, 1, 0)
+	source.connect(ctx.destination)
+	init()
+}
+
+const _init = () => {
+	navigator.getUserMedia({audio: true}, (stream) => {
+		const micctx = new AudioContext()
+		const micProcessor = micctx.createScriptProcessor(4096)
+		const userSource = micctx.createMediaStreamSource(stream)
+
+		micProcessor.onaudioprocess = processMic
+		userSource.connect(micProcessor)
+		micProcessor.connect(micctx.destination)
+		useMicrophone = true
+		connectAll()
+	}, (e) => {
+		log('Rejected!', e)
+		connectAll()
+	})
+}
+
+document.addEventListener('DOMContentLoaded', _init, false)

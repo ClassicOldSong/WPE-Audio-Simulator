@@ -16,7 +16,7 @@ module.exports = {
 	devDest: 'test/wpesmu.dev.js',
 	proDest: 'dist/wpesmu.min.js',
 	format: 'iife',
-	sourceMap: 'inline',
+	sourceMap: true,
 	plugins: [
 		progress({
 			clearLine: false
