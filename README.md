@@ -2,6 +2,8 @@
 
 A simulation of Audio API for Wallpaper Engine
 
+Live [demo](https://classicoldsong.github.io/WPE-Audio-Simulator/)
+
 ## Usage
 
 Put the simulator script at the very beginning of your project like this,
