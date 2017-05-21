@@ -14,6 +14,7 @@ yarn.lock
 cache/
 
 # Project files
+test/
 
 # node modules
 node_modules/
