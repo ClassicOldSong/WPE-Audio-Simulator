@@ -24,7 +24,7 @@ const analyserR = ctx.createAnalyser()
 const fps = 30
 const tg = 1000 / fps
 
-let raito = 0.5
+let raito = 0.6
 let AFID = 0
 let last = 0
 let threshold = 0
@@ -82,9 +82,10 @@ const update = () => {
 
 	const outputData = arrL.concat(arrR)
 		.map((item) => {
-			if (item < 0) return 0
+			if (item < 0 || item === Infinity) return 0
 			return item
 		})
+	// log(outputData)
 	audioListener(outputData)
 }
 
