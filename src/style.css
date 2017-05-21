@@ -4,6 +4,7 @@
 	overflow: hidden;
 	background-color: rgba(0, 0, 0, 0.6);
 	z-index: 999999;
+	width: 420px;
 }
 .wsmu.top {
 	top: 0;
@@ -16,4 +17,8 @@
 }
 .wsmu.right {
 	right: 0;
+}
+.wsmu.canvas {
+	width: 100%;
+	height: 200px;
 }
