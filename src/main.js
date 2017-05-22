@@ -22,6 +22,8 @@ const processor = ctx.createScriptProcessor(4096)
 const splitter = ctx.createChannelSplitter()
 const analyserL = ctx.createAnalyser()
 const analyserR = ctx.createAnalyser()
+const TDBL = analyserL.maxDecibels - analyserL.minDecibels
+const TDBR = analyserR.maxDecibels - analyserR.minDecibels
 const fps = 30
 const tg = 1000 / fps
 
@@ -60,6 +62,8 @@ const shiftCanvas = () => {
 	_ctx.putImageData(imageData, -1, 0)
 }
 
+const getRawL = i => (i + TDBL) / TDBL
+const getRawR = i => (i + TDBR) / TDBR
 const sum = (l, r) => l + r
 
 const update = () => {
@@ -81,17 +85,24 @@ const update = () => {
 	const tarrR = Array.from(f32arrR).slice(0, 512)
 	const arrL = []
 	const arrR = []
-	for (let i = 0; i < 512; i += 8) {
-		arrL.push(Math.pow(tarrL.slice(i, i + 8).reduce(sum) / 1024 + 1, 2) * Math.pow(0.9 + 4 * i / f32arrL.length, 2) * raito)
-		arrR.push(Math.pow(tarrR.slice(i, i + 8).reduce(sum) / 1024 + 1, 2) * Math.pow(0.9 + 4 * i / f32arrR.length, 2) * raito)
+	for (let i = 0; i < 256; i += 4) {
+		arrL.push(tarrL.slice(i, i + 4)
+			.map(getRawL)
+			.reduce(sum) / 4 * Math.pow(0.9 + 4 * i / f32arrL.length, 2) * raito)
+		arrR.push(tarrR.slice(i, i + 8)
+			.map(getRawR)
+			.reduce(sum) / 4 * Math.pow(0.9 + 4 * i / f32arrR.length, 2) * raito)
 	}
 
-	const scopeData = tarrR.concat(tarrL).reverse()
+	const scopeData = tarrR.map(getRawR)
+		.concat(tarrL.map(getRawL))
+		.reverse()
 
 	shiftCanvas()
 	for (let i in scopeData) {
-		let opacity = (128 + scopeData[i]) / 128
+		let opacity = scopeData[i]
 		if (opacity < 0) opacity = 0
+		if (opacity < 0) log('<0')
 		_ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`
 		_ctx.fillRect(1023, i, 1, 1)
 	}
