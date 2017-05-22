@@ -978,9 +978,10 @@ var processMerge = function processMerge(_ref) {
 		var inputData = inputBuffer.getChannelData(channel);
 		var outputData = outputBuffer.getChannelData(channel);
 
+		outputBuffer.copyToChannel(micBuffer[channel], channel);
+
 		for (var sample = 0; sample < inputBuffer.length; sample++) {
-			outputData[sample] = inputData[sample];
-			if (micBuffer[channel][sample]) outputData[sample] += micBuffer[channel][sample];
+			outputData[sample] += inputData[sample];
 		}
 	}
 };
@@ -999,6 +1000,10 @@ var shiftCanvas = function shiftCanvas() {
 	var imageData = _ctx.getImageData(0, 0, canvas.width, canvas.height);
 	canvas.width = canvas.width;
 	_ctx.putImageData(imageData, -1, 0);
+};
+
+var sum = function sum(l, r) {
+	return l + r;
 };
 
 function _ref3(item) {
@@ -1025,12 +1030,12 @@ var update = function update() {
 	var tarrR = _Array$from(f32arrR).slice(0, 512);
 	var arrL = [];
 	var arrR = [];
-	for (var i = 0; i < 512; i += 4) {
-		arrL.push(Math.pow((tarrL[i] + tarrL[i + 1] + tarrL[i + 2] + tarrL[i + 3]) / 512 + 1, 2) * Math.pow(0.9 + 4 * i / f32arrL.length, 2) * raito);
-		arrR.push(Math.pow((tarrR[i] + tarrR[i + 1] + tarrR[i + 2] + tarrR[i + 3]) / 512 + 1, 2) * Math.pow(0.9 + 4 * i / f32arrR.length, 2) * raito);
+	for (var i = 0; i < 512; i += 8) {
+		arrL.push(Math.pow(tarrL.slice(i, i + 8).reduce(sum) / 1024 + 1, 2) * Math.pow(0.9 + 4 * i / f32arrL.length, 2) * raito);
+		arrR.push(Math.pow(tarrR.slice(i, i + 8).reduce(sum) / 1024 + 1, 2) * Math.pow(0.9 + 4 * i / f32arrR.length, 2) * raito);
 	}
 
-	var scopeData = tarrL.concat(tarrR).reverse();
+	var scopeData = tarrR.concat(tarrL).reverse();
 
 	shiftCanvas();
 	for (var _i in scopeData) {
@@ -1085,20 +1090,20 @@ var init = function init() {
 	pauseBtn.addEventListener('click', _ref6);
 	stopBtn.addEventListener('click', _ref7);
 
-	info('v' + "0.3.0.master.0b1409d" + ' Initialized!');
+	info('v' + "0.3.1.master.a7f0d83" + ' Initialized!');
 };
 
 var connectAll = function connectAll() {
 	source.connect(processor);
-
 	processor.connect(splitter);
 	splitter.connect(analyserL, 0, 0);
 	splitter.connect(analyserR, 1, 0);
 	source.connect(ctx.destination);
 	init();
+	update();
 };
 
-function _ref8(stream) {
+var streamMic = function streamMic(stream) {
 	var micctx = new AudioContext();
 	var micProcessor = micctx.createScriptProcessor(4096);
 	var userSource = micctx.createMediaStreamSource(stream);
@@ -1107,16 +1112,20 @@ function _ref8(stream) {
 	userSource.connect(micProcessor);
 	micProcessor.connect(micctx.destination);
 	useMicrophone = true;
-	connectAll();
-}
+};
 
-function _ref9(e) {
-	log('Rejected!', e);
-	connectAll();
-}
+var logReject = function logReject(e) {
+	return log('Rejected!', e);
+};
 
 var _init = function _init() {
-	navigator.getUserMedia({ audio: true }, _ref8, _ref9);
+	if (navigator.mediaDevices) navigator.mediaDevices.getUserMedia({ audio: true }).then(streamMic).catch(logReject);else try {
+		navigator.getUserMedia({ audio: true }, streamMic, logReject);
+	} catch (err) {
+		log('Your browser doesn\'t support audio recording!', err);
+	}
+
+	connectAll();
 };
 
 document.addEventListener('DOMContentLoaded', _init, false);
