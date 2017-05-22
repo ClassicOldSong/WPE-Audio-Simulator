@@ -955,6 +955,8 @@ var processor = ctx.createScriptProcessor(4096);
 var splitter = ctx.createChannelSplitter();
 var analyserL = ctx.createAnalyser();
 var analyserR = ctx.createAnalyser();
+var TDBL = analyserL.maxDecibels - analyserL.minDecibels;
+var TDBR = analyserR.maxDecibels - analyserR.minDecibels;
 var fps = 30;
 var tg = 1000 / fps;
 
@@ -1002,6 +1004,12 @@ var shiftCanvas = function shiftCanvas() {
 	_ctx.putImageData(imageData, -1, 0);
 };
 
+var getRawL = function getRawL(i) {
+	return (i + TDBL) / TDBL;
+};
+var getRawR = function getRawR(i) {
+	return (i + TDBR) / TDBR;
+};
 var sum = function sum(l, r) {
 	return l + r;
 };
@@ -1030,17 +1038,18 @@ var update = function update() {
 	var tarrR = _Array$from(f32arrR).slice(0, 512);
 	var arrL = [];
 	var arrR = [];
-	for (var i = 0; i < 512; i += 8) {
-		arrL.push(Math.pow(tarrL.slice(i, i + 8).reduce(sum) / 1024 + 1, 2) * Math.pow(0.9 + 4 * i / f32arrL.length, 2) * raito);
-		arrR.push(Math.pow(tarrR.slice(i, i + 8).reduce(sum) / 1024 + 1, 2) * Math.pow(0.9 + 4 * i / f32arrR.length, 2) * raito);
+	for (var i = 0; i < 256; i += 4) {
+		arrL.push(tarrL.slice(i, i + 4).map(getRawL).reduce(sum) / 4 * Math.pow(0.9 + 4 * i / f32arrL.length, 2) * raito);
+		arrR.push(tarrR.slice(i, i + 8).map(getRawR).reduce(sum) / 4 * Math.pow(0.9 + 4 * i / f32arrR.length, 2) * raito);
 	}
 
-	var scopeData = tarrR.concat(tarrL).reverse();
+	var scopeData = tarrR.map(getRawR).concat(tarrL.map(getRawL)).reverse();
 
 	shiftCanvas();
 	for (var _i in scopeData) {
-		var opacity = (128 + scopeData[_i]) / 128;
+		var opacity = scopeData[_i];
 		if (opacity < 0) opacity = 0;
+		if (opacity < 0) log('<0');
 		_ctx.fillStyle = 'rgba(255, 255, 255, ' + opacity + ')';
 		_ctx.fillRect(1023, _i, 1, 1);
 	}
@@ -1090,7 +1099,7 @@ var init = function init() {
 	pauseBtn.addEventListener('click', _ref6);
 	stopBtn.addEventListener('click', _ref7);
 
-	info('v' + "0.3.1.master.a7f0d83" + ' Initialized!');
+	info('v' + "0.3.2.master.fcf6d5c" + ' Initialized!');
 };
 
 var connectAll = function connectAll() {
