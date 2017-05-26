@@ -16,9 +16,8 @@ const registerAudioListener = (listener) => {
 window.wallpaperRegisterAudioListener = registerAudioListener
 
 const audio = new Audio()
-const ctx = new AudioContext()
+const ctx = new (window.AudioContext || window.webkitAudioContext)()
 const source = ctx.createMediaElementSource(audio)
-const processor = ctx.createScriptProcessor(4096)
 const splitter = ctx.createChannelSplitter()
 const analyserL = ctx.createAnalyser()
 const analyserR = ctx.createAnalyser()
@@ -33,28 +32,10 @@ let last = 0
 let threshold = 0
 let useMicrophone = false
 
-const micBuffer = [new Float32Array(4096), new Float32Array(4096)]
 analyserL.smoothingTimeConstant = 0
 analyserR.smoothingTimeConstant = 0
 analyserL.fftSize = 2048
 analyserR.fftSize = 2048
-
-const processMerge = ({inputBuffer, outputBuffer}) => {
-	for (let channel = 0; channel < outputBuffer.numberOfChannels; channel++) {
-		const inputData = inputBuffer.getChannelData(channel)
-		const outputData = outputBuffer.getChannelData(channel)
-
-		outputBuffer.copyToChannel(micBuffer[channel], channel)
-
-		for (let sample = 0; sample < inputBuffer.length; sample++) outputData[sample] += inputData[sample]
-	}
-}
-
-const processMic = ({inputBuffer}) => {
-  for (let i = 0; i < inputBuffer.numberOfChannels; i++) inputBuffer.copyFromChannel(micBuffer[i], i)
-}
-
-processor.onaudioprocess = processMerge
 
 const shiftCanvas = () => {
 	const imageData = _ctx.getImageData(0, 0, canvas.width, canvas.height)
@@ -81,21 +62,25 @@ const update = () => {
 	const f32arrR = new Float32Array(analyserR.frequencyBinCount)
 	analyserL.getFloatFrequencyData(f32arrL)
 	analyserR.getFloatFrequencyData(f32arrR)
-	const tarrL = Array.from(f32arrL).slice(0, 512)
-	const tarrR = Array.from(f32arrR).slice(0, 512)
+	const tarrL = Array
+		.from(f32arrL)
+		.slice(0, 512)
+		.map(getRawL)
+	const tarrR = Array
+		.from(f32arrR)
+		.slice(0, 512)
+		.map(getRawR)
 	const arrL = []
 	const arrR = []
 	for (let i = 0; i < 256; i += 4) {
 		arrL.push(tarrL.slice(i, i + 4)
-			.map(getRawL)
 			.reduce(sum) / 4 * Math.pow(0.9 + 4 * i / f32arrL.length, 2) * raito)
 		arrR.push(tarrR.slice(i, i + 8)
-			.map(getRawR)
 			.reduce(sum) / 4 * Math.pow(0.9 + 4 * i / f32arrR.length, 2) * raito)
 	}
 
-	const scopeData = tarrR.map(getRawR)
-		.concat(tarrL.map(getRawL))
+	const scopeData = tarrR
+		.concat(tarrL)
 		.reverse()
 
 	shiftCanvas()
@@ -152,8 +137,7 @@ const init = () => {
 }
 
 const connectAll = () => {
-	source.connect(processor)
-	processor.connect(splitter)
+	source.connect(splitter)
 	splitter.connect(analyserL, 0, 0)
 	splitter.connect(analyserR, 1, 0)
 	source.connect(ctx.destination)
@@ -162,19 +146,16 @@ const connectAll = () => {
 }
 
 const streamMic = (stream) => {
-	const micctx = new AudioContext()
-	const micProcessor = micctx.createScriptProcessor(4096)
-	const userSource = micctx.createMediaStreamSource(stream)
+	const userSource = ctx.createMediaStreamSource(stream)
 
-	micProcessor.onaudioprocess = processMic
-	userSource.connect(micProcessor)
-	micProcessor.connect(micctx.destination)
+	userSource.connect(splitter)
 	useMicrophone = true
 }
 
 const logReject = e => log('Rejected!', e)
 
 const _init = () => {
+	connectAll()
 	if (navigator.mediaDevices) navigator.mediaDevices.getUserMedia({audio: true})
 		.then(streamMic)
 		.catch(logReject)
@@ -183,8 +164,6 @@ const _init = () => {
 	} catch (err) {
 		log('Your browser doesn\'t support audio recording!', err)
 	}
-
-	connectAll()
 }
 
 document.addEventListener('DOMContentLoaded', _init, false)
