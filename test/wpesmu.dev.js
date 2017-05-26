@@ -949,9 +949,8 @@ var registerAudioListener = function registerAudioListener(listener) {
 window.wallpaperRegisterAudioListener = registerAudioListener;
 
 var audio = new Audio();
-var ctx = new AudioContext();
+var ctx = new (window.AudioContext || window.webkitAudioContext)();
 var source = ctx.createMediaElementSource(audio);
-var processor = ctx.createScriptProcessor(4096);
 var splitter = ctx.createChannelSplitter();
 var analyserL = ctx.createAnalyser();
 var analyserR = ctx.createAnalyser();
@@ -966,37 +965,10 @@ var last = 0;
 var threshold = 0;
 var useMicrophone = false;
 
-var micBuffer = [new Float32Array(4096), new Float32Array(4096)];
 analyserL.smoothingTimeConstant = 0;
 analyserR.smoothingTimeConstant = 0;
 analyserL.fftSize = 2048;
 analyserR.fftSize = 2048;
-
-var processMerge = function processMerge(_ref) {
-	var inputBuffer = _ref.inputBuffer,
-	    outputBuffer = _ref.outputBuffer;
-
-	for (var channel = 0; channel < outputBuffer.numberOfChannels; channel++) {
-		var inputData = inputBuffer.getChannelData(channel);
-		var outputData = outputBuffer.getChannelData(channel);
-
-		outputBuffer.copyToChannel(micBuffer[channel], channel);
-
-		for (var sample = 0; sample < inputBuffer.length; sample++) {
-			outputData[sample] += inputData[sample];
-		}
-	}
-};
-
-var processMic = function processMic(_ref2) {
-	var inputBuffer = _ref2.inputBuffer;
-
-	for (var i = 0; i < inputBuffer.numberOfChannels; i++) {
-		inputBuffer.copyFromChannel(micBuffer[i], i);
-	}
-};
-
-processor.onaudioprocess = processMerge;
 
 var shiftCanvas = function shiftCanvas() {
 	var imageData = _ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -1014,7 +986,7 @@ var sum = function sum(l, r) {
 	return l + r;
 };
 
-function _ref3(item) {
+function _ref(item) {
 	if (item < 0 || item === Infinity) return 0;
 	return item;
 }
@@ -1034,16 +1006,16 @@ var update = function update() {
 	var f32arrR = new Float32Array(analyserR.frequencyBinCount);
 	analyserL.getFloatFrequencyData(f32arrL);
 	analyserR.getFloatFrequencyData(f32arrR);
-	var tarrL = _Array$from(f32arrL).slice(0, 512);
-	var tarrR = _Array$from(f32arrR).slice(0, 512);
+	var tarrL = _Array$from(f32arrL).slice(0, 512).map(getRawL);
+	var tarrR = _Array$from(f32arrR).slice(0, 512).map(getRawR);
 	var arrL = [];
 	var arrR = [];
 	for (var i = 0; i < 256; i += 4) {
-		arrL.push(tarrL.slice(i, i + 4).map(getRawL).reduce(sum) / 4 * Math.pow(0.9 + 4 * i / f32arrL.length, 2) * raito);
-		arrR.push(tarrR.slice(i, i + 8).map(getRawR).reduce(sum) / 4 * Math.pow(0.9 + 4 * i / f32arrR.length, 2) * raito);
+		arrL.push(tarrL.slice(i, i + 4).reduce(sum) / 4 * Math.pow(0.9 + 4 * i / f32arrL.length, 2) * raito);
+		arrR.push(tarrR.slice(i, i + 8).reduce(sum) / 4 * Math.pow(0.9 + 4 * i / f32arrR.length, 2) * raito);
 	}
 
-	var scopeData = tarrR.map(getRawR).concat(tarrL.map(getRawL)).reverse();
+	var scopeData = tarrR.concat(tarrL).reverse();
 
 	shiftCanvas();
 	for (var _i in scopeData) {
@@ -1054,26 +1026,26 @@ var update = function update() {
 		_ctx.fillRect(1023, _i, 1, 1);
 	}
 
-	var outputData = arrL.reverse().concat(arrR.reverse()).map(_ref3);
+	var outputData = arrL.reverse().concat(arrR.reverse()).map(_ref);
 	audioListener(outputData);
 };
 
-function _ref4(evt) {
+function _ref2(evt) {
 	var url = URL.createObjectURL(evt.target.files[0]);
 	if (audio.src) URL.revokeObjectURL(audio.src);
 	audio.src = url;
 }
 
-function _ref5() {
+function _ref3() {
 	if (!AFID) update();
 	audio.play();
 }
 
-function _ref6() {
+function _ref4() {
 	audio.pause();
 }
 
-function _ref7() {
+function _ref5() {
 	audio.pause();
 	audio.currentTime = 0;
 	window.cancelAnimationFrame(AFID);
@@ -1093,18 +1065,17 @@ var init = function init() {
 	_ctx = canvas.getContext('2d');
 
 	if (useMicrophone) update();
-	input.addEventListener('change', _ref4);
+	input.addEventListener('change', _ref2);
 
-	playBtn.addEventListener('click', _ref5);
-	pauseBtn.addEventListener('click', _ref6);
-	stopBtn.addEventListener('click', _ref7);
+	playBtn.addEventListener('click', _ref3);
+	pauseBtn.addEventListener('click', _ref4);
+	stopBtn.addEventListener('click', _ref5);
 
-	info('v' + "0.3.2.master.fcf6d5c" + ' Initialized!');
+	info('v' + "0.3.3.master.4b977ac" + ' Initialized!');
 };
 
 var connectAll = function connectAll() {
-	source.connect(processor);
-	processor.connect(splitter);
+	source.connect(splitter);
 	splitter.connect(analyserL, 0, 0);
 	splitter.connect(analyserR, 1, 0);
 	source.connect(ctx.destination);
@@ -1113,13 +1084,9 @@ var connectAll = function connectAll() {
 };
 
 var streamMic = function streamMic(stream) {
-	var micctx = new AudioContext();
-	var micProcessor = micctx.createScriptProcessor(4096);
-	var userSource = micctx.createMediaStreamSource(stream);
+	var userSource = ctx.createMediaStreamSource(stream);
 
-	micProcessor.onaudioprocess = processMic;
-	userSource.connect(micProcessor);
-	micProcessor.connect(micctx.destination);
+	userSource.connect(splitter);
 	useMicrophone = true;
 };
 
@@ -1128,13 +1095,12 @@ var logReject = function logReject(e) {
 };
 
 var _init = function _init() {
+	connectAll();
 	if (navigator.mediaDevices) navigator.mediaDevices.getUserMedia({ audio: true }).then(streamMic).catch(logReject);else try {
 		navigator.getUserMedia({ audio: true }, streamMic, logReject);
 	} catch (err) {
 		log('Your browser doesn\'t support audio recording!', err);
 	}
-
-	connectAll();
 };
 
 document.addEventListener('DOMContentLoaded', _init, false);
