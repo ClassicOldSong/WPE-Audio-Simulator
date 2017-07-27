@@ -1026,7 +1026,7 @@ var update = function update() {
 		_ctx.fillRect(1023, _i, 1, 1);
 	}
 
-	var outputData = arrL.reverse().concat(arrR.reverse()).map(_ref);
+	var outputData = arrL.concat(arrR).map(_ref);
 	audioListener(outputData);
 };
 
@@ -1071,7 +1071,7 @@ var init = function init() {
 	pauseBtn.addEventListener('click', _ref4);
 	stopBtn.addEventListener('click', _ref5);
 
-	info('v' + "0.3.3.master.4b977ac" + ' Initialized!');
+	info('v' + "0.3.3.master.4605c59" + ' Initialized!');
 };
 
 var connectAll = function connectAll() {

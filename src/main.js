@@ -92,7 +92,7 @@ const update = () => {
 		_ctx.fillRect(1023, i, 1, 1)
 	}
 
-	const outputData = arrL.reverse().concat(arrR.reverse())
+	const outputData = arrL.concat(arrR)
 		.map((item) => {
 			if (item < 0 || item === Infinity) return 0
 			return item
